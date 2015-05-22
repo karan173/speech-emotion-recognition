@@ -9,6 +9,13 @@ from sklearn import preprocessing
 
 numpy.seterr(all='warn')
 
+
+class Segment:
+	def __init__(self, segment_features, segment_energy, output):
+		self.segment_features = segment_features
+		self.segment_energy = segment_energy
+		self.output = output
+
 def getSegment(frames, start, end):
 	rows = frames[start : end+1, ]
 	return numpy.hstack(rows)
@@ -22,6 +29,14 @@ def convertManyToOne(Y):
 				break
 	return newY
 
+def filterSegments(segments, threshold):
+	#sort segments by energy
+	segments.sort(key = lambda segment : segment.segment_energy)
+	num_segments = len(segments)
+	threshold_segment_idx = int(num_segments*threshold)
+	threshold_energy = segments[threshold_segment_idx].segment_energy
+	#filter list
+	return [segment for segment in segments if segment.segment_energy >= threshold_energy]
 
 folder_path = '/home/karan173/Desktop/btp/berlin_db/wav/'
 audios = []
@@ -49,17 +64,24 @@ featuresPerFrame = 13 + 1
 framesPerSegment = 25
 featuresPerSegment = featuresPerFrame * framesPerSegment
 segmentHop = 13
-
+energyPercentThreshold = 0.20 #fractional
 w = Windowing(type = 'hann')
 spectrum = Spectrum()
 mfcc = MFCC()
 
+
+#will map from audio number to list of Segments
+utterances = {}
+
+		
 X = numpy.empty((0, featuresPerSegment))
 Y = numpy.empty((0, num_emotions))
 energy_func = essentia.standard.Energy()
+audio_ids = []
 
 for i in range(len(audios)):
 	print i
+	utterances[i] = []
 	audio = audios[i]
 	output = emotions[i]
 	output_vec = numpy.zeros((1, num_emotions))
@@ -83,100 +105,19 @@ for i in range(len(audios)):
 		if end_segment >= len(frames) :
 			break
 		segment = getSegment(frames, start_segment, end_segment)
+		segment_energy = energy_func(essentia.array(segment))
 		start_segment = start_segment + segmentHop -1 #segmentSize = 13
-		X = numpy.vstack([X, segment])
-		Y = numpy.vstack([Y, output_vec])
+		segment_obj = Segment(segment, segment_energy, output_vec) 
+		utterances[i].append(segment_obj)
+	utterances[i] = filterSegments(utterances[i], energyPercentThreshold)
+
+	for segment in utterances[i]:
+		segment_features = numpy.append(segment.segment_features, segment.segment_energy)
+		X = numpy.vstack([X, segment.segment_features])
+		Y = numpy.vstack([Y, segment.output])
+		audio_ids.append(i)
 
 X_scaled = preprocessing.scale(X)
-scipy.io.savemat('X.mat', {'X' : X})
 scipy.io.savemat('Y.mat', {'Y' : Y})
 scipy.io.savemat('X_scaled.mat', {'X_scaled' : X_scaled})
-
-	
-# #training
-# hidden_layers = 3
-# num_inputs = len(X[0])
-# num_outputs = num_emotions
-
-# from pybrain.tools.shortcuts import buildNetwork
-# net = buildNetwork(num_inputs, hidden_layers, num_outputs, bias=True)
-
-# from pybrain.datasets import SupervisedDataSet
-# ds = SupervisedDataSet(num_inputs, num_outputs)
-
-# for i in range(len(X)):
-# 	ds.addSample(X_scaled[i], Y[i])
-
-# from pybrain.supervised.trainers import BackpropTrainer
-# trainer = BackpropTrainer(net, ds)
-	
-# trainer.trainUntilConvergence(verbose=True, maxEpochs=100)
-
-#error calculation
-# total = true = 0.0
-# for x, y in tstdata:
-#     out = net.activate(x).argmax()
-#     if out == y.argmax():
-#         true+=1
-#     #print str(out) + " " + str(y.argmax())
-#     total+=1
-# res = true/total
-# print res
-	
-# #37% accuracy
-
-from pybrain.datasets            import ClassificationDataSet
-from pybrain.utilities           import percentError
-from pybrain.tools.shortcuts     import buildNetwork
-from pybrain.supervised.trainers import BackpropTrainer
-from pybrain.structure.modules   import SoftmaxLayer
-from pybrain.tools.customxml.networkwriter import NetworkWriter 
-from pybrain.tools.customxml.networkreader import NetworkReader
-from pybrain.utilities           import percentError
-num_inputs = len(X[0])
-ds = ClassificationDataSet(num_inputs, 1 , nb_classes=num_emotions)
-
-Y = convertManyToOne(Y)
-
-for k in xrange(len(X)): 
-	ds.addSample(X_scaled[k],Y[k])
-
-ds._convertToOneOfMany()
-tstdata, trndata = ds.splitWithProportion( 0.25 ) #25% test data
-
-
-fnn = buildNetwork( trndata.indim, 50 , trndata.outdim, outclass=SoftmaxLayer )
-
-trainer = BackpropTrainer( fnn, dataset=trndata, momentum=0.1, learningrate=0.01 , verbose=True, weightdecay=0.01) 
-
-NUM_EPOCHS = 10
-for i in range(NUM_EPOCHS):
-    error = trainer.train()
-    print "Epoch: %d, Error: %7.4f" % (i, error)
-    
-
-#error calculation
-total = true = 0.0
-for x, y in trndata:
-    out = fnn.activate(x).argmax()
-    if out == y.argmax():
-        true+=1
-    #print str(out) + " " + str(y.argmax())
-    total+=1
-res = true/total
-print "Accuracy on training data %.2f percent\n" % (res*100.0)
-	
-#error calculation
-total = true = 0.0
-for x, y in tstdata:
-    out = fnn.activate(x).argmax()
-    if out == y.argmax():
-        true+=1
-    #print str(out) + " " + str(y.argmax())
-    total+=1
-res = true/total
-print "Accuracy on test data %.2f percent\n" % (res*100.0)
-
-#getting 43% accuracy on training and test data each
-
-#for svm around 30% accuracy on both training and test data
+scipy.io.savemat('audio_ids.mat', {'audio_ids' : audio_ids})

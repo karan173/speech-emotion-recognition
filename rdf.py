@@ -17,7 +17,7 @@ Y = numpy.hstack(Y)
 from sklearn.cross_validation import train_test_split
 X_train, X_test, y_train, y_test = train_test_split(X, Y, test_size=0.3)
 from sklearn.ensemble import RandomForestClassifier
-clf = RandomForestClassifier(n_estimators=100)
+clf = RandomForestClassifier(n_estimators=10)
 clf.fit(X_train, y_train)
 
 print "Training Accuracy %.2f\n" % (clf.score(X_train, y_train))

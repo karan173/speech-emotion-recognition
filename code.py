@@ -45,7 +45,7 @@ frameDuration = 0.025 #duration in seconds
 hopDuration = 0.010
 frameSize = int(sample_rate*frameDuration)
 hopSize = int(sample_rate*hopDuration)
-featuresPerFrame = 53
+featuresPerFrame = 13 + 1
 framesPerSegment = 25
 featuresPerSegment = featuresPerFrame * framesPerSegment
 segmentHop = 13
@@ -56,6 +56,8 @@ mfcc = MFCC()
 
 X = numpy.empty((0, featuresPerSegment))
 Y = numpy.empty((0, num_emotions))
+energy_func = essentia.standard.Energy()
+
 for i in range(len(audios)):
 	print i
 	audio = audios[i]
@@ -68,8 +70,10 @@ for i in range(len(audios)):
 	for frame in FrameGenerator(audio, frameSize = frameSize, hopSize = hopSize):
 		mfcc_bands, mfcc_coeffs = mfcc(spectrum(w(frame))) #40 mfcc bands and 13 mfcc_coeffs
 		# frame_features = numpy.concatenate((mfcc_bands,mfcc_coeffs))
-		frame_features = mfcc_coeffs
+		frame_energy = energy_func(audio)
+		frame_features = numpy.append(mfcc_coeffs, frame_energy)
 		if numpy.isnan(frame_features).any() :
+			print "nan\nnan\n"
 			exit()
 		frames = numpy.vstack([frames,frame_features])
 

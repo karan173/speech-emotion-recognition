@@ -1,4 +1,3 @@
-
 import numpy
 def convertManyToOne(Y):
 	newY = numpy.empty((0, 1))
@@ -17,8 +16,8 @@ Y = convertManyToOne(Y)
 Y = numpy.hstack(Y)
 from sklearn.cross_validation import train_test_split
 X_train, X_test, y_train, y_test = train_test_split(X, Y, test_size=0.3)
-from sklearn.svm import SVC
-clf = SVC(verbose=True, cache_size = 700)
+from sklearn.ensemble import RandomForestClassifier
+clf = RandomForestClassifier(n_estimators=100)
 clf.fit(X_train, y_train)
 
 print "Training Accuracy %.2f\n" % (clf.score(X_train, y_train))

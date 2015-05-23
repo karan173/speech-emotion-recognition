@@ -6,9 +6,8 @@ import scipy.io
 from essentia.standard import *
 import numpy
 from sklearn import preprocessing
-
+from sys import exit
 numpy.seterr(all='warn')
-
 
 class Segment:
 	def __init__(self, segment_features, segment_energy, output):
@@ -19,6 +18,12 @@ class Segment:
 def getSegment(frames, start, end):
 	rows = frames[start : end+1, ]
 	return numpy.hstack(rows)
+
+def getSegmentEnergy(frames, start, end):
+	energy_sum = 0
+	for i in xrange(start, end+1):
+		energy_sum += frames[i][-1]
+	return energy_sum
 
 def convertManyToOne(Y):
 	newY = numpy.empty((0, 1))
@@ -34,6 +39,7 @@ def filterSegments(segments, threshold):
 	segments.sort(key = lambda segment : segment.segment_energy)
 	num_segments = len(segments)
 	threshold_segment_idx = int(num_segments*threshold)
+	#threshold_segment_idx = 1000
 	threshold_energy = segments[threshold_segment_idx].segment_energy
 	#filter list
 	return [segment for segment in segments if segment.segment_energy >= threshold_energy]
@@ -62,7 +68,7 @@ frameSize = int(sample_rate*frameDuration)
 hopSize = int(sample_rate*hopDuration)
 featuresPerFrame = 13 + 1
 framesPerSegment = 25
-featuresPerSegment = featuresPerFrame * framesPerSegment
+featuresPerSegment = featuresPerFrame * framesPerSegment + 1#+1 bcoz of segment energy
 segmentHop = 13
 energyPercentThreshold = 0.20 #fractional
 w = Windowing(type = 'hann')
@@ -72,18 +78,18 @@ mfcc = MFCC()
 
 #will map from audio number to list of Segments
 utterances = {}
-
 		
-X = numpy.empty((0, featuresPerSegment))
+X = numpy.empty((0, featuresPerSegment+1)) #+1 for audio id
 Y = numpy.empty((0, num_emotions))
 energy_func = essentia.standard.Energy()
-audio_ids = []
-
+id_to_emotion_map = {}
+num_segments = []
 for i in range(len(audios)):
 	print i
 	utterances[i] = []
 	audio = audios[i]
 	output = emotions[i]
+	id_to_emotion_map[i] = output
 	output_vec = numpy.zeros((1, num_emotions))
 	output_vec[0][output] = 1
 	frames = numpy.empty((featuresPerFrame, )) #each index stores a list of 53 features for that frame
@@ -97,6 +103,9 @@ for i in range(len(audios)):
 		if numpy.isnan(frame_features).any() :
 			print "nan\nnan\n"
 			exit()
+		if numpy.isinf(frame_features).any() :
+			print "nan\nnan\n"
+			exit()
 		frames = numpy.vstack([frames,frame_features])
 
 	start_segment = 0
@@ -105,19 +114,26 @@ for i in range(len(audios)):
 		if end_segment >= len(frames) :
 			break
 		segment = getSegment(frames, start_segment, end_segment)
-		segment_energy = energy_func(essentia.array(segment))
+		segment_energy = getSegmentEnergy(frames, start_segment, end_segment)
+		if numpy.isinf(segment_energy):
+			print "inf"
+			exit()
 		start_segment = start_segment + segmentHop -1 #segmentSize = 13
 		segment_obj = Segment(segment, segment_energy, output_vec) 
 		utterances[i].append(segment_obj)
-	utterances[i] = filterSegments(utterances[i], energyPercentThreshold)
 
+	utterances[i] = filterSegments(utterances[i], energyPercentThreshold)
+	num_segments.append(len(utterances[i]))
 	for segment in utterances[i]:
 		segment_features = numpy.append(segment.segment_features, segment.segment_energy)
-		X = numpy.vstack([X, segment.segment_features])
+		segment_features = numpy.append(segment_features, i)
+		X = numpy.vstack([X, segment_features])
 		Y = numpy.vstack([Y, segment.output])
-		audio_ids.append(i)
 
-X_scaled = preprocessing.scale(X)
+X_scaled = preprocessing.scale(X[:, 0:-1]) #dont include audio ids while scaling
+X_scaled = numpy.hstack([X_scaled, numpy.vstack(X[:,-1])])
 scipy.io.savemat('Y.mat', {'Y' : Y})
 scipy.io.savemat('X_scaled.mat', {'X_scaled' : X_scaled})
-scipy.io.savemat('audio_ids.mat', {'audio_ids' : audio_ids})
+import pickle
+pickle.dump(id_to_emotion_map, open( "id_to_emotion.p", "wb" ))
+

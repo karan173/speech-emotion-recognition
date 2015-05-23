@@ -36,7 +36,7 @@ def convertManyToOne(Y):
 
 def filterSegments(segments, threshold):
 	#sort segments by energy
-	segments.sort(key = lambda segment : segment.segment_energy)
+	segments.sort(key = lambda segment : segment.segment_energy, reverse=True)
 	num_segments = len(segments)
 	threshold_segment_idx = int(num_segments*threshold)
 	#threshold_segment_idx = 1000
@@ -105,7 +105,7 @@ for i in range(len(audios)):
 	for frame in FrameGenerator(audio, frameSize = frameSize, hopSize = hopSize):
 		mfcc_bands, mfcc_coeffs = mfcc(spectrum(w(frame))) #40 mfcc bands and 13 mfcc_coeffs
 		# frame_features = numpy.concatenate((mfcc_bands,mfcc_coeffs))
-		frame_energy = energy_func(audio)
+		frame_energy = energy_func(frame)
 		frame_features = numpy.append(mfcc_coeffs, frame_energy)
 		if numpy.isnan(frame_features).any() :
 			print "nan\nnan\n"

@@ -1,0 +1,6 @@
+1) Better accuracy metric
+2) Output Class wise accuracy
+3) Implement cross validation with skikit
+4) Find why only about 45% accuracy on svm but 85% on RDF
+5) Add more features(Adding energy increased accuracy)
+6) Do on other pref. english dataset

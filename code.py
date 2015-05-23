@@ -48,6 +48,13 @@ folder_path = '/home/karan173/Desktop/btp/berlin_db/wav/'
 audios = []
 emotions = []
 emotion_class_map = {'W' : 0, 'L' : 1, 'E' : 2, 'A' : 3, 'F' : 4, 'T' : 5, 'N' : 6}
+#W = anger
+#L = boredom
+#E = disgust
+#A = anxiety/fear
+#F = happiness
+#T = sadness
+#N = neutral
 num_emotions = len(emotion_class_map)
 
 for filename in os.listdir(folder_path):
